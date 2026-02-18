@@ -34,12 +34,24 @@ export const Register = () => {
       const finalMedium = trafficData?.medium || 'none';
       const finalCampaign = trafficData?.campaign || null;
 
-      await supabase.from('user_attribution').insert([{ 
-          user_id: data.user?.id, 
-          source: finalSource,
-          medium: finalMedium,
-          campaign: finalCampaign
-      }]);
+      // CHANGE: Use 'upsert' instead of 'insert'
+      // onConflict: 'user_id' means "If this User ID already has a row, update it instead of crashing"
+      const { error: trackError } = await supabase
+        .from('user_attribution')
+        .upsert(
+          { 
+            user_id: data.user?.id, 
+            source: finalSource,
+            medium: finalMedium,
+            campaign: finalCampaign
+          },
+          { onConflict: 'user_id' } 
+        );
+
+      if (trackError) {
+         console.error("Tracking save failed:", trackError);
+         // We do NOT stop the user here. Let them proceed to the store.
+      }
       
       clearTrackingData(); // Clear the "Green Box" data
       navigate('/');       // Redirect to Store

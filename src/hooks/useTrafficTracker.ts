@@ -9,38 +9,48 @@ export interface TrafficData {
 }
 
 export const useTrafficTracker = () => {
-  // 1. FIX: Initialize State by checking BOTH LocalStorage AND URL
-  // Priority: URL params override saved data (for new campaigns)
   const [trafficData, setTrafficData] = useState<TrafficData | null>(() => {
-    // Check URL first for new tracking data
-    const query = new URLSearchParams(window.location.search);
-    const source = query.get('utm_source');
+    // SAFETY CHECK 1: Try-Catch for all localStorage operations
+    try {
+      // Check URL first for new tracking data
+      const query = new URLSearchParams(window.location.search);
+      const source = query.get('utm_source');
 
-    if (source) {
-      // New tracking data from URL
-      const newData = {
-        source: source,
-        medium: query.get('utm_medium') || 'none',
-        campaign: query.get('utm_campaign') || 'none',
-      };
+      if (source) {
+        // New tracking data from URL
+        const newData = {
+          source: source,
+          medium: query.get('utm_medium') || 'none',
+          campaign: query.get('utm_campaign') || 'none',
+        };
 
-      // Save to localStorage immediately
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
-      return newData;
+        // SAFETY CHECK 2: Try-Catch writing to localStorage
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
+        } catch (writeError) {
+          console.error('Could not save tracking data:', writeError);
+        }
+        
+        return newData;
+      }
+
+      // No URL params? Check localStorage for saved data
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? JSON.parse(saved) : null;
+    } catch (error) {
+      // Catch URL parsing errors or localStorage read failures
+      console.warn('Tracking initialization failed:', error);
+      return null; // Fail gracefully, don't crash
     }
-
-    // No URL params? Check localStorage for saved data
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : null;
   });
 
   const clearTrackingData = () => {
-    localStorage.removeItem(STORAGE_KEY);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Ignore localStorage errors when clearing
+    }
     setTrafficData(null);
-    
-    // Optional: Clean URL for visual cleanliness
-    const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
-    window.history.replaceState({ path: cleanUrl }, "", cleanUrl);
   };
 
   return { trafficData, clearTrackingData };
