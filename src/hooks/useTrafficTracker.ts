@@ -1,64 +1,44 @@
 import { useState } from 'react';
 
-// Define the shape of our data
+const STORAGE_KEY = 'user_traffic_source';
+
 export interface TrafficData {
   source: string;
   medium: string;
   campaign: string;
-  landed_at: string;
 }
 
-const STORAGE_KEY = 'dental_store_traffic';
-
 export const useTrafficTracker = () => {
-  // THE FIX: We pass a function to useState. 
-  // This runs ONCE immediately when the app starts, not after.
+  // 1. FIX: Initialize State by checking BOTH LocalStorage AND URL
+  // Priority: URL params override saved data (for new campaigns)
   const [trafficData, setTrafficData] = useState<TrafficData | null>(() => {
-    
-    // 1. Check if we are in a browser environment (safety check)
-    if (typeof window === 'undefined') return null;
+    // Check URL first for new tracking data
+    const query = new URLSearchParams(window.location.search);
+    const source = query.get('utm_source');
 
-    // 2. Try to read from URL first (High Priority)
-    const params = new URLSearchParams(window.location.search);
-    const urlSource = params.get('utm_source');
-
-    if (urlSource) {
-      // New visitor! Capture them.
-      const newData: TrafficData = {
-        source: urlSource,
-        medium: params.get('utm_medium') || 'unknown',
-        campaign: params.get('utm_campaign') || 'unknown',
-        landed_at: new Date().toISOString(),
+    if (source) {
+      // New tracking data from URL
+      const newData = {
+        source: source,
+        medium: query.get('utm_medium') || 'none',
+        campaign: query.get('utm_campaign') || 'none',
       };
 
-      // Save to Browser Storage immediately
+      // Save to localStorage immediately
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
-      console.log('🎯 Tracker: Captured new campaign data:', newData);
-      return newData; // This becomes the initial state
+      return newData;
     }
 
-    // 3. No URL? Check LocalStorage
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        console.log('👀 Tracker: Found existing user data:', parsed);
-        return parsed;
-      } catch {
-        return null;
-      }
-    }
-
-    return null;
+    // No URL params? Check localStorage for saved data
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : null;
   });
 
   const clearTrackingData = () => {
-    // 1. Clear the storage
     localStorage.removeItem(STORAGE_KEY);
     setTrafficData(null);
-
-    // 2. NEW: Clean the URL bar so a refresh doesn't re-trigger it
-    // This removes the "?utm_source=..." without reloading the page
+    
+    // Optional: Clean URL for visual cleanliness
     const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
     window.history.replaceState({ path: cleanUrl }, "", cleanUrl);
   };
